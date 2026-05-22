@@ -157,7 +157,7 @@ export default function SessionScreen({ navigation, T }) {
         id: Date.now(),
         date: new Date().toISOString(),
         label: TODAY.label,
-        exercises: exs.length,
+        exercises: exs,
         completedSets,
         totalSets,
         totalVolKg,

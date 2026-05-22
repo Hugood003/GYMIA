@@ -1,53 +1,129 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
 import { RADIUS, SPACING } from '../tokens';
 import { Pill } from '../components/UI';
 import { IconSpark, IconClose, IconMic, IconSend, IconChevRight } from '../components/Icons';
-import { AI_THREAD } from '../data';
-
-// ── AI response engine ────────────────────────────────────────
-const RULES = [
-  { match: ['plan', 'rutina', 'programa', 'generar', 'diseña', 'arma'],
-    text: 'Perfecto, aquí tienes tu plan personalizado:',
-    type: 'plan' },
-  { match: ['proteína', 'proteina', 'dieta', 'comer', 'caloría', 'caloria', 'nutrición'],
-    text: 'Para hipertrofia apunta a 1.8–2.2 g de proteína por kg de peso. Con tus datos, son ~150 g/día. Distribuye en 4–5 comidas.' },
-  { match: ['descanso', 'dormir', 'sueño', 'recuperar', 'recuperación'],
-    text: 'El sueño es cuando más músculo construyes. 7–9 h optimizan la hormona del crecimiento y la síntesis proteica. ¿Tienes problemas para descansar?' },
-  { match: ['dolor', 'lesión', 'lesion', 'molesta', 'duele', 'molestia'],
-    text: 'Si es dolor agudo, para el ejercicio y consulta un profesional. Para molestias leves puedo adaptar los ejercicios. ¿En qué zona tienes la molestia?' },
-  { match: ['progreso', 'avance', 'resultado', 'mejora'],
-    text: 'Llevas 12 días de racha. Sentadilla +4 kg este mes, banca +2 kg, volumen semanal +18%. Vas muy bien — sigue el plan.' },
-  { match: ['hoy', 'sesión', 'sesion', 'entreno', 'workout'],
-    text: 'Hoy tienes Pierna: sentadilla, peso muerto rumano, prensa 45°, curl femoral y gemelo. ~70 min. ¿Quieres ajustar algo antes de empezar?' },
-  { match: ['calentamiento', 'warm up', 'calentar'],
-    text: 'Para pierna: 5 min bici suave, 2 × 10 sentadillas con peso corporal, 2 × 10 puente de glúteo. Termina con movilidad de cadera 30 seg por lado.' },
-  { match: ['peso', 'bajar', 'grasa', 'perder'],
-    text: 'Para reducir grasa manteniendo músculo: déficit de 200–300 kcal, proteína alta, cardio de bajo impacto 2–3 veces/semana. ¿Quieres que ajuste el plan?' },
+const INITIAL_THREAD = [
+  { role: 'ai', text: '¡Hola! Soy Coach GYMIA, tu entrenador personal con IA. Cuéntame qué necesitas: ajustar tu plan, resolver dudas sobre ejercicios o lo que sea.' },
 ];
+import { useApp } from '../context/AppContext';
 
-const DEFAULTS = [
-  'Entendido. ¿Necesitas algo más para tu entreno de hoy?',
-  'Anotado. ¿Quieres ajustar algo en tu plan de esta semana?',
-  'Perfecto. La consistencia supera la intensidad — sigue así.',
-  '¿Hay algún ejercicio que quieras priorizar o evitar esta semana?',
-  'Buena pregunta. ¿Quieres que profundice en algún aspecto concreto?',
-];
+// ── Gemini API ────────────────────────────────────────────────
+const GEMINI_KEY = process.env.EXPO_PUBLIC_GEMINI_KEY;
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`;
 
-function getResponse(text) {
-  const t = text.toLowerCase();
-  for (const rule of RULES) {
-    if (rule.match.some(kw => t.includes(kw))) return rule;
-  }
-  return { text: DEFAULTS[Math.floor(Date.now() % DEFAULTS.length)] };
+function buildSystemPrompt(user, plan, sessions) {
+  const goal = { hipertrofia: 'hipertrofia (ganar masa muscular)', fuerza: 'fuerza máxima', definicion: 'definición (perder grasa)', salud: 'salud y forma física' }[user?.goal] || 'fitness general';
+  const level = { principiante: 'principiante', intermedio: 'nivel intermedio', avanzado: 'nivel avanzado' }[user?.level] || 'nivel intermedio';
+  const equip = user?.equip?.join(', ') || 'gimnasio completo';
+  const planText = plan?.map(d => `${d.d}: ${d.label} (${d.minutes} min)`).join(', ') || '';
+
+  // Formatear historial real de sesiones (últimas 5)
+  const recentSessions = (sessions || []).slice(0, 5);
+  const sessionHistory = recentSessions.length === 0
+    ? 'Sin sesiones registradas aún.'
+    : recentSessions.map(s => {
+        const date = new Date(s.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+        const mins = s.durationSec ? Math.round(s.durationSec / 60) : '?';
+        let exSummary = '';
+        if (Array.isArray(s.exercises)) {
+          exSummary = s.exercises.map(ex => {
+            const doneSets = ex.sets?.filter(st => st.done);
+            if (!doneSets?.length) return null;
+            const maxKg = Math.max(...doneSets.map(st => st.kg || 0));
+            const reps = doneSets[0]?.reps || '?';
+            return `${ex.name} ${maxKg}kg×${reps}`;
+          }).filter(Boolean).join(', ');
+        }
+        return `• ${date} — ${s.label} (${mins} min, ${s.completedSets}/${s.totalSets} series, ${s.totalVolKg ? (s.totalVolKg/1000).toFixed(1)+'t' : '?'})${exSummary ? ': ' + exSummary : ''}`;
+      }).join('\n');
+
+  return `Eres Coach GYMIA, un entrenador personal de IA especializado en fitness y musculación. Responde siempre en español de forma concisa, clara y motivadora. Máximo 3-4 oraciones salvo que te pidan un plan detallado.
+
+Datos del usuario:
+- Nombre: ${user?.name || 'Atleta'}
+- Edad: ${user?.age || '—'} años | Peso: ${user?.weight || '—'} kg | Altura: ${user?.height || '—'} cm | Sexo: ${user?.sex === 'M' ? 'Mujer' : 'Hombre'}
+- Objetivo: ${goal}
+- Nivel: ${level}
+- Días disponibles: ${user?.days || 4} por semana
+- Equipamiento: ${equip}
+- Plan semanal actual: ${planText}
+
+Historial de sesiones registradas:
+${sessionHistory}
+
+IMPORTANTE — Cuando el usuario pida modificar un día del plan (cambiar minutos, renombrar, reducir ejercicios, hacer descanso, etc.), incluye AL FINAL de tu respuesta un bloque exactamente así:
+[ACTION]{"d":"Vie","changes":{"minutes":50}}[/ACTION]
+
+Usa el código de día exacto: Lun, Mar, Mié, Jue, Vie, Sáb, Dom.
+Cuando el usuario diga "hoy" o "el entreno de hoy", usa el día que corresponda a hoy según el plan (el que tiene status "today").
+"changes" puede tener: minutes (número), label (texto), exercises (número), status ("rest"/"next"/"today").
+Solo incluye el bloque [ACTION] cuando realmente modifiques el plan. No lo incluyas en respuestas informativas.
+Importante: solo un bloque [ACTION] por respuesta.`;
 }
 
-const SUGGESTIONS = [
-  'Ajusta el entreno de hoy a 45 min',
-  'Sugiere un calentamiento de pierna',
-  'Análisis de mi progreso este mes',
-  'Dame una rutina para 4 días',
-];
+async function callGemini(systemPrompt, history) {
+  // Gemini requires: no 'plan' messages, must start with 'user', must alternate roles
+  let contents = history
+    .filter(m => !m.type)
+    .map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }));
+
+  // Drop leading 'model' messages (Gemini rejects history that doesn't start with 'user')
+  while (contents.length > 0 && contents[0].role === 'model') {
+    contents = contents.slice(1);
+  }
+
+  // Collapse consecutive same-role messages into one
+  const merged = [];
+  for (const msg of contents) {
+    const last = merged[merged.length - 1];
+    if (last && last.role === msg.role) {
+      last.parts[0].text += '\n' + msg.parts[0].text;
+    } else {
+      merged.push({ role: msg.role, parts: [{ text: msg.parts[0].text }] });
+    }
+  }
+
+  const res = await fetch(GEMINI_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents: merged,
+    }),
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text();
+    throw new Error(`Gemini ${res.status}: ${errBody}`);
+  }
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || 'No pude generar una respuesta.';
+}
+
+async function fetchSuggestions(user, plan) {
+  const days = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  const today = days[new Date().getDay()];
+  const todaySession = plan?.find(d => d.status === 'today');
+  const sessionLabel = todaySession ? `${todaySession.label} (${todaySession.minutes} min)` : 'descanso';
+
+  const prompt = `Eres un asistente de gym. Genera exactamente 4 mensajes cortos que UN USUARIO le podría enviar a su coach IA hoy ${today}.
+Contexto del usuario: entreno de hoy = ${sessionLabel}, objetivo = ${user?.goal || 'fitness'}, nivel = ${user?.level || 'intermedio'}.
+Cada mensaje debe ser algo que el usuario ENVIARÍA al coach, como "Ajusta mi entreno de hoy a 45 min" o "¿Qué peso uso hoy en sentadilla?".
+Máximo 8 palabras por mensaje. Variados: mezcla peticiones de ajuste, preguntas técnicas y consultas de plan.
+Devuelve SOLO un array JSON de 4 strings en español, sin markdown, sin explicación.`;
+
+  const res = await fetch(GEMINI_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] }),
+  });
+  if (!res.ok) throw new Error('error');
+  const data = await res.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+  const match = text.match(/\[[\s\S]*?\]/);
+  return match ? JSON.parse(match[0]) : [];
+}
 
 // ── Message component ─────────────────────────────────────────
 function Msg({ T, m }) {
@@ -92,23 +168,53 @@ function PlanPreview({ T, onActivate }) {
 }
 
 export default function AIScreen({ navigation, T }) {
-  const [tab, setTab]         = useState('chat');
-  const [thread, setThread]   = useState(AI_THREAD);
-  const [draft, setDraft]     = useState('');
+  const { state, dispatch } = useApp();
+  const [tab, setTab]           = useState('chat');
+  const [thread, setThread]     = useState(INITIAL_THREAD);
+  const [draft, setDraft]       = useState('');
   const [thinking, setThinking] = useState(false);
+  const [usedSuggestions, setUsedSuggestions] = useState([]);
+  const [suggestions, setSuggestions]         = useState([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(true);
   const scrollRef = useRef(null);
 
-  const send = (text) => {
+  useEffect(() => {
+    fetchSuggestions(state.user, state.plan)
+      .then(setSuggestions)
+      .catch(() => setSuggestions([]))
+      .finally(() => setLoadingSuggestions(false));
+  }, []);
+
+  const send = async (text, isSuggestion = false) => {
     if (!text.trim() || thinking) return;
-    setThread(t => [...t, { role: 'user', text }]);
+    if (isSuggestion) setUsedSuggestions(u => [...u, text]);
+    const userMsg = { role: 'user', text };
+    const newThread = [...thread, userMsg];
+    setThread(newThread);
     setDraft('');
     setThinking(true);
-    const delay = 800 + Math.random() * 600;
-    setTimeout(() => {
-      const resp = getResponse(text);
+    try {
+      const systemPrompt = buildSystemPrompt(state.user, state.plan, state.sessions);
+      const raw = await callGemini(systemPrompt, newThread);
+
+      // Parse and apply [ACTION] blocks
+      const actionMatch = raw.match(/\[ACTION\]([\s\S]*?)\[\/ACTION\]/);
+      const cleanText = raw.replace(/\[ACTION\][\s\S]*?\[\/ACTION\]/g, '').trim();
+
+      if (actionMatch) {
+        try {
+          const action = JSON.parse(actionMatch[1]);
+          dispatch({ type: 'UPDATE_PLAN_DAY', payload: action });
+        } catch (_) {}
+      }
+
+      setThread(t => [...t, { role: 'ai', text: cleanText }]);
+    } catch (e) {
+      console.error('Gemini error:', e.message);
+      setThread(t => [...t, { role: 'ai', text: `Error: ${e.message}` }]);
+    } finally {
       setThinking(false);
-      setThread(t => [...t, { role: 'ai', text: resp.text, type: resp.type }]);
-    }, delay);
+    }
   };
 
   const lastIsAI = !thinking && thread.length > 0 && thread[thread.length - 1].role === 'ai';
@@ -161,15 +267,20 @@ export default function AIScreen({ navigation, T }) {
                   </View>
                 </View>
               )}
-              {lastIsAI && (
+              {lastIsAI && (loadingSuggestions || suggestions.filter(s => !usedSuggestions.includes(s)).length > 0) && (
                 <View style={{ marginTop: 6 }}>
                   <Text style={{ fontFamily: 'SpaceMono', fontSize: 10, color: T.ink3, letterSpacing: 1.4, textTransform: 'uppercase', marginBottom: 8, paddingLeft: 4 }}>Sugerencias</Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                    {SUGGESTIONS.map(s => (
-                      <TouchableOpacity key={s} onPress={() => send(s)} style={{ backgroundColor: T.surface, borderWidth: 1, borderColor: T.hairline, borderRadius: RADIUS.md, padding: 10 }}>
-                        <Text style={{ fontFamily: 'System', fontSize: 13, color: T.ink }}>{s}</Text>
-                      </TouchableOpacity>
-                    ))}
+                    {loadingSuggestions
+                      ? [80, 120, 100, 90].map((w, i) => (
+                          <View key={i} style={{ width: w, height: 38, backgroundColor: T.surface, borderRadius: RADIUS.md, borderWidth: 1, borderColor: T.hairline, opacity: 0.5 }} />
+                        ))
+                      : suggestions.filter(s => !usedSuggestions.includes(s)).map(s => (
+                          <TouchableOpacity key={s} onPress={() => send(s, true)} style={{ backgroundColor: T.surface, borderWidth: 1, borderColor: T.hairline, borderRadius: RADIUS.md, padding: 10 }}>
+                            <Text style={{ fontFamily: 'System', fontSize: 13, color: T.ink }}>{s}</Text>
+                          </TouchableOpacity>
+                        ))
+                    }
                   </View>
                 </View>
               )}

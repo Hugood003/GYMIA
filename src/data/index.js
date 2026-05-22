@@ -26,8 +26,8 @@ export const TODAY = {
   label: 'Pierna · Cuádriceps dominante',
   exercises: [
     { id: 'sq',  name: 'Sentadilla con barra', muscle: 'Cuádriceps', sets: [
-      { reps: 8, kg: 80, rpe: 7, done: true },
-      { reps: 8, kg: 80, rpe: 8, done: true },
+      { reps: 8, kg: 80, rpe: 7, done: false },
+      { reps: 8, kg: 80, rpe: 8, done: false },
       { reps: 6, kg: 85, rpe: 8, done: false },
       { reps: 6, kg: 85, rpe: 9, done: false },
     ], rest: 150, note: 'Bajar a paralelo, codos arriba.' },

@@ -1,8 +1,34 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
 import { RADIUS, SPACING } from '../tokens';
 import { CTA, Hairline } from '../components/UI';
 import { IconShield, IconCheck, IconChevRight, IconEye } from '../components/Icons';
+
+WebBrowser.maybeCompleteAuthSession();
+
+// ─── Reemplaza con tus credenciales de Google Cloud Console ───
+const GOOGLE_WEB_CLIENT_ID    = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID    || null;
+const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || null;
+const GOOGLE_IOS_CLIENT_ID    = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID    || null;
+// ──────────────────────────────────────────────────────────────
+
+const ACCOUNTS_KEY = 'gymia_accounts';
+
+async function getAccounts() {
+  try {
+    const raw = await AsyncStorage.getItem(ACCOUNTS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+async function saveAccount(email, password, name) {
+  const accounts = await getAccounts();
+  accounts.push({ email: email.toLowerCase().trim(), password, name });
+  await AsyncStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+}
 
 function BrandMark({ T }) {
   return (
@@ -65,18 +91,81 @@ export default function LoginScreen({ navigation, T }) {
   const [remember, setRemember] = useState(true);
   const [errors, setErrors]     = useState({});
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading]   = useState(false);
   const isSignup = mode === 'signup';
 
-  const handleSubmit = () => {
+  // ── Google OAuth ──────────────────────────────────────────────
+  const [googleRequest, googleResponse, googlePrompt] = Google.useAuthRequest({
+    webClientId:     GOOGLE_WEB_CLIENT_ID,
+    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+    iosClientId:     GOOGLE_IOS_CLIENT_ID,
+  });
+
+  useEffect(() => {
+    if (googleResponse?.type !== 'success') return;
+    handleGoogleSuccess(googleResponse.authentication.accessToken);
+  }, [googleResponse]);
+
+  const handleGoogleSuccess = async (accessToken) => {
+    setLoading(true);
+    try {
+      const res  = await fetch('https://www.googleapis.com/userinfo/v2/me', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const info = await res.json();
+      const email = info.email?.toLowerCase();
+      const name  = info.name || info.given_name || 'Usuario';
+
+      const accounts = await getAccounts();
+      const exists   = accounts.find(a => a.email === email);
+      if (!exists) {
+        await saveAccount(email, '__google__', name);
+        navigation.replace('Onboarding', { name });
+      } else {
+        navigation.replace('Main');
+      }
+    } catch {
+      setErrors({ email: 'Error al iniciar con Google. Intenta de nuevo.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async () => {
     setSubmitted(true);
     const errs = validate(mode, email, pass, name);
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
-    if (isSignup) {
-      navigation.replace('Onboarding', { name: name.trim() });
-    } else {
-      navigation.replace('Main');
+    setLoading(true);
+    try {
+      const accounts = await getAccounts();
+      const normalizedEmail = email.toLowerCase().trim();
+
+      if (isSignup) {
+        const exists = accounts.find(a => a.email === normalizedEmail);
+        if (exists) {
+          setErrors({ email: 'Este email ya tiene una cuenta. Inicia sesión.' });
+          return;
+        }
+        await saveAccount(normalizedEmail, pass, name.trim());
+        navigation.replace('Onboarding', { name: name.trim() });
+      } else {
+        const account = accounts.find(a => a.email === normalizedEmail);
+        if (!account) {
+          setErrors({ email: 'No encontramos esta cuenta. ¿Quieres crearla?' });
+          return;
+        }
+        if (account.password !== pass) {
+          setErrors({ pass: 'Contraseña incorrecta.' });
+          return;
+        }
+        navigation.replace('Main');
+      }
+    } catch {
+      setErrors({ email: 'Error al conectar. Intenta de nuevo.' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -161,18 +250,26 @@ export default function LoginScreen({ navigation, T }) {
           </View>
 
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            {['Apple', 'Google'].map(p => (
-              <TouchableOpacity key={p} style={{ flex: 1, backgroundColor: T.surface, borderWidth: 1, borderColor: T.hairline, borderRadius: RADIUS.md, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-                <Text style={{ fontFamily: 'System', fontSize: 14, fontWeight: '600', color: T.ink }}>{p}</Text>
-              </TouchableOpacity>
-            ))}
+            <TouchableOpacity style={{ flex: 1, backgroundColor: T.surface, borderWidth: 1, borderColor: T.hairline, borderRadius: RADIUS.md, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+              <Text style={{ fontFamily: 'System', fontSize: 14, fontWeight: '600', color: T.ink }}>Apple</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => GOOGLE_WEB_CLIENT_ID ? googlePrompt() : setErrors({ email: 'Configura EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID en .env' })}
+              disabled={loading}
+              style={{ flex: 1, backgroundColor: T.surface, borderWidth: 1, borderColor: T.hairline, borderRadius: RADIUS.md, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+              {loading
+                ? <ActivityIndicator size="small" color={T.ink} />
+                : <Text style={{ fontFamily: 'System', fontSize: 14, fontWeight: '600', color: T.ink }}>Google</Text>
+              }
+            </TouchableOpacity>
           </View>
           <View style={{ height: 20 }} />
         </ScrollView>
 
         <View style={{ paddingHorizontal: SPACING.md, paddingBottom: SPACING.xl, paddingTop: SPACING.sm, backgroundColor: T.bg }}>
-          <CTA T={T} onPress={handleSubmit} icon={<IconChevRight size={18} color={T.accentInk} />}>
-            {isSignup ? 'Crear cuenta' : 'Iniciar sesión'}
+          <CTA T={T} onPress={handleSubmit} disabled={loading}
+            icon={loading ? <ActivityIndicator size="small" color={T.accentInk} /> : <IconChevRight size={18} color={T.accentInk} />}>
+            {loading ? 'Verificando…' : isSignup ? 'Crear cuenta' : 'Iniciar sesión'}
           </CTA>
           <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 14, gap: 4 }}>
             <Text style={{ fontFamily: 'System', fontSize: 13, color: T.ink2 }}>

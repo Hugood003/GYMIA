@@ -31,7 +31,7 @@ export function Pill({ children, T, tone = 'soft', style }) {
 }
 
 // ── CTA Button ───────────────────────────────────────────────
-export function CTA({ children, onPress, T, tone = 'accent', style, icon }) {
+export function CTA({ children, onPress, T, tone = 'accent', style, icon, disabled }) {
   const tones = {
     accent: { bg: T.accent,       fg: T.accentInk },
     ink:    { bg: T.ink,          fg: T.bg },
@@ -39,8 +39,9 @@ export function CTA({ children, onPress, T, tone = 'accent', style, icon }) {
   }[tone] || { bg: T.accent, fg: T.accentInk };
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={[{
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85} disabled={disabled} style={[{
       backgroundColor: tones.bg,
+      opacity: disabled ? 0.6 : 1,
       borderRadius: RADIUS.pill,
       paddingVertical: 16, paddingHorizontal: 22,
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

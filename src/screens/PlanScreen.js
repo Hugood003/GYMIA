@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, SafeAreaView } from 'react-na
 import { RADIUS, SPACING } from '../tokens';
 import { Pill, Section, PageHeader, IconBtn } from '../components/UI';
 import { IconSettings, IconChevRight, IconSpark } from '../components/Icons';
-import { WEEK } from '../data';
+import { useApp } from '../context/AppContext';
 
 function DayRow({ T, d, onPress }) {
   const done  = d.status === 'done';
@@ -39,6 +39,17 @@ function DayRow({ T, d, onPress }) {
 }
 
 export default function PlanScreen({ navigation, T }) {
+  const { state } = useApp();
+  const WEEK = state.plan;
+  const [hint, setHint] = React.useState('pending'); // 'pending' | 'accepted' | 'dismissed'
+
+  const activeDays = WEEK.filter(d => d.status !== 'rest').length;
+  const totalMin   = WEEK.reduce((s, d) => s + (d.minutes || 0), 0);
+  const totalHours = Math.floor(totalMin / 60);
+  const remMin     = totalMin % 60;
+  const timeLabel  = `${totalHours}h ${remMin > 0 ? remMin + 'm' : ''}`.trim();
+  const hasHistory = state.sessions.length > 0;
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: T.bg }}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
@@ -48,7 +59,7 @@ export default function PlanScreen({ navigation, T }) {
         {/* Summary */}
         <View style={{ paddingHorizontal: SPACING.md, paddingBottom: 18 }}>
           <View style={{ backgroundColor: T.surface, borderWidth: 1, borderColor: T.hairline, borderRadius: RADIUS.xl, padding: SPACING.md, flexDirection: 'row', justifyContent: 'space-around' }}>
-            {[['4','Días'], ['22 t','Volumen'], ['98','Series'], ['4h 5m','Tiempo']].map(([v, l]) => (
+            {[[String(activeDays),'Días'], [hasHistory ? `${state.sessions.length}` : '—','Sesiones'], [timeLabel,'Tiempo']].map(([v, l]) => (
               <View key={l} style={{ alignItems: 'center' }}>
                 <Text style={{ fontFamily: 'SpaceMono', fontSize: 18, fontWeight: '500', color: T.ink, letterSpacing: -0.5 }}>{v}</Text>
                 <Text style={{ fontFamily: 'SpaceMono', fontSize: 9, color: T.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginTop: 4 }}>{l}</Text>
@@ -96,27 +107,37 @@ export default function PlanScreen({ navigation, T }) {
           </View>
         </View>
 
-        {/* AI hint */}
-        <View style={{ paddingHorizontal: SPACING.md, paddingTop: 18 }}>
-          <View style={{ backgroundColor: T.surface, borderWidth: 1, borderColor: T.hairline, borderRadius: RADIUS.xl, padding: SPACING.md, flexDirection: 'row', gap: 12 }}>
-            <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' }}>
-              <IconSpark size={16} color={T.accentInk} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontFamily: 'System', fontSize: 14, color: T.ink, lineHeight: 20 }}>
-                Detecté que <Text style={{ fontWeight: '700' }}>hombro</Text> aparece en 3 sesiones seguidas. ¿Quieres que lo redistribuya?
-              </Text>
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-                <TouchableOpacity style={{ backgroundColor: T.ink, paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.pill }}>
-                  <Text style={{ fontFamily: 'System', fontSize: 12, fontWeight: '600', color: T.bg }}>Sí, redistribuir</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={{ borderWidth: 1, borderColor: T.hairline, paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.pill }}>
-                  <Text style={{ fontFamily: 'System', fontSize: 12, fontWeight: '600', color: T.ink }}>No, mantener</Text>
-                </TouchableOpacity>
+        {/* AI hint — solo visible tras al menos una sesión */}
+        {hint !== 'dismissed' && hasHistory && (
+          <View style={{ paddingHorizontal: SPACING.md, paddingTop: 18 }}>
+            <View style={{ backgroundColor: T.surface, borderWidth: 1, borderColor: hint === 'accepted' ? T.accent : T.hairline, borderRadius: RADIUS.xl, padding: SPACING.md, flexDirection: 'row', gap: 12 }}>
+              <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' }}>
+                <IconSpark size={16} color={T.accentInk} />
+              </View>
+              <View style={{ flex: 1 }}>
+                {hint === 'pending' ? (
+                  <>
+                    <Text style={{ fontFamily: 'System', fontSize: 14, color: T.ink, lineHeight: 20 }}>
+                      Detecté que <Text style={{ fontWeight: '700' }}>hombro</Text> aparece en 3 sesiones seguidas. ¿Quieres que lo redistribuya?
+                    </Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                      <TouchableOpacity onPress={() => setHint('accepted')} style={{ backgroundColor: T.ink, paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.pill }}>
+                        <Text style={{ fontFamily: 'System', fontSize: 12, fontWeight: '600', color: T.bg }}>Sí, redistribuir</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => setHint('dismissed')} style={{ borderWidth: 1, borderColor: T.hairline, paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.pill }}>
+                        <Text style={{ fontFamily: 'System', fontSize: 12, fontWeight: '600', color: T.ink }}>No, mantener</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                ) : (
+                  <Text style={{ fontFamily: 'System', fontSize: 14, color: T.ink, lineHeight: 20 }}>
+                    ✓ <Text style={{ fontWeight: '700' }}>Hombro redistribuido.</Text> He movido el trabajo de hombro al viernes para dejar 48 h de recuperación entre sesiones.
+                  </Text>
+                )}
               </View>
             </View>
           </View>
-        </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

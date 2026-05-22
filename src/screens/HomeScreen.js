@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, ScrollView, SafeAreaView } from 'react-na
 import { RADIUS, SPACING } from '../tokens';
 import { Section, PageHeader, IconBtn, Pill } from '../components/UI';
 import { IconBell, IconPlay, IconCalendar, IconArrowUp, IconFlame, IconScale, IconSpark } from '../components/Icons';
-import { WEEK } from '../data';
 import { useApp } from '../context/AppContext';
 
 const DAYS_ES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -44,6 +43,8 @@ function KpiCard({ T, kicker, big, unit, foot, icon }) {
 export default function HomeScreen({ navigation, T }) {
   const { state, streak, sessionsThisWeek, volumeThisWeek } = useApp();
   const user = state.user;
+  const plan = state.plan;
+  const todaySession = plan?.find(d => d.status === 'today') || {};
 
   const now   = new Date();
   const dateStr = `${DAYS_ES[now.getDay()]} · ${now.getDate()} ${MONTHS_ES[now.getMonth()]}`;
@@ -62,7 +63,7 @@ export default function HomeScreen({ navigation, T }) {
             <Text style={{ fontFamily: 'SpaceMono', fontSize: 10, color: T.ink3, letterSpacing: 1.6, textTransform: 'uppercase' }}>{dateStr}</Text>
             <Text style={{ fontFamily: 'System', fontSize: 28, fontWeight: '700', color: T.ink, letterSpacing: -0.6, marginTop: 4, lineHeight: 32 }}>{getGreeting()}, {firstName}.</Text>
             <Text style={{ fontFamily: 'System', fontSize: 15, color: T.ink2, marginTop: 2 }}>
-              Hoy toca <Text style={{ color: T.ink, fontWeight: '700' }}>pierna</Text>. 5 ejercicios, ~70 min.
+              Hoy toca <Text style={{ color: T.ink, fontWeight: '700' }}>{(todaySession.label || 'Pierna').toLowerCase()}</Text>. {todaySession.exercises || 5} ejercicios, ~{todaySession.minutes || 70} min.
             </Text>
           </View>
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
@@ -81,14 +82,12 @@ export default function HomeScreen({ navigation, T }) {
               <Text style={{ fontFamily: 'SpaceMono', fontSize: 11, color: 'rgba(255,255,255,0.5)', letterSpacing: 1 }}>04 / 12 sem</Text>
             </View>
             <Text style={{ marginTop: 18, fontFamily: 'System', fontSize: 22, fontWeight: '600', color: '#fff', letterSpacing: -0.4, lineHeight: 26 }}>
-              Pierna · Cuádriceps dominante
+              {todaySession.label || 'Pierna · Cuádriceps dominante'}
             </Text>
             <View style={{ flexDirection: 'row', gap: 18, marginTop: 16, marginBottom: 18, alignItems: 'flex-end' }}>
-              <StatBlock label="Ejercicios" value="5"  T={T} light />
+              <StatBlock label="Ejercicios" value={String(todaySession.exercises || 5)}  T={T} light />
               <View style={{ width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.12)' }} />
-              <StatBlock label="Series"    value="17" T={T} light />
-              <View style={{ width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.12)' }} />
-              <StatBlock label="Minutos"   value="70" T={T} light />
+              <StatBlock label="Minutos"   value={String(todaySession.minutes || 70)} T={T} light />
             </View>
             <TouchableOpacity onPress={() => navigation.navigate('Session')} activeOpacity={0.85} style={{ backgroundColor: T.accent, borderRadius: RADIUS.pill, paddingVertical: 14, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
               <IconPlay size={18} color={T.accentInk} />
@@ -101,7 +100,7 @@ export default function HomeScreen({ navigation, T }) {
         <View style={{ paddingHorizontal: SPACING.md, paddingTop: 24 }}>
           <Section T={T} kicker="Semana 04" title="Tu plan" action="Ver todo" />
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            {WEEK.map(d => {
+            {plan.map(d => {
               const isToday = d.status === 'today';
               const done    = d.status === 'done';
               const rest    = d.status === 'rest';
@@ -131,17 +130,23 @@ export default function HomeScreen({ navigation, T }) {
 
         {/* AI suggestion */}
         <View style={{ paddingHorizontal: SPACING.md, paddingTop: 24 }}>
-          <TouchableOpacity onPress={() => navigation.navigate('AI')} activeOpacity={0.85} style={{ borderWidth: 1, borderColor: T.accent, borderStyle: 'dashed', borderRadius: RADIUS.xl, padding: 18, backgroundColor: T.accentSoft }}>
+          <TouchableOpacity onPress={() => navigation.navigate('AI')} activeOpacity={0.85} style={{ borderWidth: 1, borderColor: state.sessions.length > 0 ? T.accent : T.hairline, borderStyle: state.sessions.length > 0 ? 'dashed' : 'solid', borderRadius: RADIUS.xl, padding: 18, backgroundColor: state.sessions.length > 0 ? T.accentSoft : T.surface }}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
               <View style={{ width: 36, height: 36, borderRadius: RADIUS.md, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' }}>
                 <IconSpark size={20} color={T.accentInk} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: 'SpaceMono', fontSize: 10, color: T.ink3, letterSpacing: 1.4, textTransform: 'uppercase', marginBottom: 4 }}>Coach GYMIA</Text>
-                <Text style={{ fontFamily: 'System', fontSize: 14, color: T.ink, lineHeight: 20 }}>
-                  Tu sentadilla subió <Text style={{ fontWeight: '700' }}>+4 kg</Text> en 2 semanas. Para no estancarte, te propongo bajar reps a 6 y subir carga el viernes.
-                </Text>
-                <Text style={{ marginTop: 10, fontFamily: 'SpaceMono', fontSize: 11, color: T.ink2, letterSpacing: 0.8, textTransform: 'uppercase' }}>Tocar para ajustar →</Text>
+                {state.sessions.length === 0 ? (
+                  <Text style={{ fontFamily: 'System', fontSize: 14, color: T.ink, lineHeight: 20 }}>
+                    Bienvenido. <Text style={{ fontWeight: '700' }}>Completa tu primer entreno</Text> y empezaré a analizar tu progreso para darte sugerencias personalizadas.
+                  </Text>
+                ) : (
+                  <Text style={{ fontFamily: 'System', fontSize: 14, color: T.ink, lineHeight: 20 }}>
+                    Llevas <Text style={{ fontWeight: '700' }}>{state.sessions.length} sesión{state.sessions.length > 1 ? 'es' : ''}</Text> registradas. Habla conmigo para ajustar tu plan.
+                  </Text>
+                )}
+                <Text style={{ marginTop: 10, fontFamily: 'SpaceMono', fontSize: 11, color: T.ink2, letterSpacing: 0.8, textTransform: 'uppercase' }}>Tocar para abrir el chat →</Text>
               </View>
             </View>
           </TouchableOpacity>
