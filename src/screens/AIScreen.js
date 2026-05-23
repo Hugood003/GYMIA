@@ -16,7 +16,14 @@ function buildSystemPrompt(user, plan, sessions) {
   const goal = { hipertrofia: 'hipertrofia (ganar masa muscular)', fuerza: 'fuerza máxima', definicion: 'definición (perder grasa)', salud: 'salud y forma física' }[user?.goal] || 'fitness general';
   const level = { principiante: 'principiante', intermedio: 'nivel intermedio', avanzado: 'nivel avanzado' }[user?.level] || 'nivel intermedio';
   const equip = user?.equip?.join(', ') || 'gimnasio completo';
-  const planText = plan?.map(d => `${d.d}: ${d.label} (${d.minutes} min)`).join(', ') || '';
+
+  const DAY_NAMES_ES = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const DAY_CODES   = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const jsDay = new Date().getDay();
+  const todayName = DAY_NAMES_ES[jsDay];
+  const todayCode = DAY_CODES[jsDay];
+
+  const planText = plan?.map(d => `${d.d}: ${d.label} (${d.minutes} min)${d.status === 'today' ? ' ← HOY' : ''}`).join(', ') || '';
 
   // Formatear historial real de sesiones (últimas 5)
   const recentSessions = (sessions || []).slice(0, 5);
@@ -40,6 +47,8 @@ function buildSystemPrompt(user, plan, sessions) {
 
   return `Eres Coach GYMIA, un entrenador personal de IA especializado en fitness y musculación. Responde siempre en español de forma concisa, clara y motivadora. Máximo 3-4 oraciones salvo que te pidan un plan detallado.
 
+HOY ES: ${todayName} (código de día: ${todayCode}). Cuando el usuario diga "hoy", siempre usa el código "${todayCode}" en el bloque [ACTION].
+
 Datos del usuario:
 - Nombre: ${user?.name || 'Atleta'}
 - Edad: ${user?.age || '—'} años | Peso: ${user?.weight || '—'} kg | Altura: ${user?.height || '—'} cm | Sexo: ${user?.sex === 'M' ? 'Mujer' : 'Hombre'}
@@ -52,14 +61,20 @@ Datos del usuario:
 Historial de sesiones registradas:
 ${sessionHistory}
 
-IMPORTANTE — Cuando el usuario pida modificar un día del plan (cambiar minutos, renombrar, reducir ejercicios, hacer descanso, etc.), incluye AL FINAL de tu respuesta un bloque exactamente así:
-[ACTION]{"d":"Vie","changes":{"minutes":50}}[/ACTION]
+IMPORTANTE — Cuando el usuario pida modificar el plan o configurar/generar ejercicios para una sesión, incluye AL FINAL de tu respuesta un bloque [ACTION]. Solo un bloque por respuesta.
 
 Usa el código de día exacto: Lun, Mar, Mié, Jue, Vie, Sáb, Dom.
-Cuando el usuario diga "hoy" o "el entreno de hoy", usa el día que corresponda a hoy según el plan (el que tiene status "today").
-"changes" puede tener: minutes (número), label (texto), exercises (número), status ("rest"/"next"/"today").
-Solo incluye el bloque [ACTION] cuando realmente modifiques el plan. No lo incluyas en respuestas informativas.
-Importante: solo un bloque [ACTION] por respuesta.`;
+Cuando el usuario diga "hoy" o "el entreno de hoy", usa el día que tenga status "today" en el plan.
+
+Ejemplo para cambiar solo metadata:
+[ACTION]{"d":"Vie","changes":{"minutes":50,"label":"Hombro · Prioridad"}}[/ACTION]
+
+Ejemplo para configurar ejercicios completos (cuando el usuario pida "configura mi rutina", "ponme los ejercicios", "genera la sesión"):
+[ACTION]{"d":"Vie","changes":{"label":"Tirón · Espalda","minutes":65,"exercisesList":[{"name":"Jalón al Pecho","muscle":"Espalda","sets":[{"reps":10,"kg":50,"rpe":7,"done":false},{"reps":10,"kg":50,"rpe":7,"done":false},{"reps":10,"kg":50,"rpe":8,"done":false},{"reps":8,"kg":55,"rpe":8,"done":false}],"rest":120,"note":"Agarre prono ancho"},{"name":"Remo con Barra","muscle":"Espalda","sets":[{"reps":10,"kg":60,"rpe":7,"done":false},{"reps":10,"kg":60,"rpe":8,"done":false},{"reps":8,"kg":65,"rpe":8,"done":false},{"reps":8,"kg":65,"rpe":9,"done":false}],"rest":120,"note":"Torso a 45°"},{"name":"Remo con Mancuerna","muscle":"Espalda","sets":[{"reps":12,"kg":30,"rpe":7,"done":false},{"reps":12,"kg":30,"rpe":8,"done":false},{"reps":10,"kg":32,"rpe":8,"done":false}],"rest":90,"note":"Unilateral"},{"name":"Face Pull","muscle":"Hombro posterior","sets":[{"reps":15,"kg":20,"rpe":7,"done":false},{"reps":15,"kg":20,"rpe":7,"done":false},{"reps":15,"kg":20,"rpe":8,"done":false}],"rest":60,"note":"Codos altos"},{"name":"Curl de Bíceps","muscle":"Bíceps","sets":[{"reps":12,"kg":14,"rpe":7,"done":false},{"reps":12,"kg":14,"rpe":8,"done":false},{"reps":10,"kg":16,"rpe":8,"done":false}],"rest":60,"note":"Alterno"}]}}[/ACTION]
+
+Reglas para exercisesList: 4-6 ejercicios, 3-4 series por ejercicio, kg basados en el historial del usuario (si no hay historial, usa pesos moderados para su nivel), rest en segundos (60-180).
+CRÍTICO: Cuando uses exercisesList en el [ACTION], NO enumeres los ejercicios en el texto de la respuesta. La app ya los mostrará automáticamente en la sesión. Solo di una frase corta de confirmación, por ejemplo: "¡Listo! Tu sesión de espalda está configurada para hoy. Ábrela cuando quieras empezar."
+Solo incluye [ACTION] cuando realmente haya cambios. No lo incluyas en respuestas puramente informativas.`;
 }
 
 async function callGemini(systemPrompt, history) {
@@ -204,6 +219,10 @@ export default function AIScreen({ navigation, T }) {
       if (actionMatch) {
         try {
           const action = JSON.parse(actionMatch[1]);
+          // Auto-sync exercises count when exercisesList is provided
+          if (action.changes?.exercisesList) {
+            action.changes.exercises = action.changes.exercisesList.length;
+          }
           dispatch({ type: 'UPDATE_PLAN_DAY', payload: action });
         } catch (_) {}
       }

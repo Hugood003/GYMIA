@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, SafeAreaView, Alert } from 'react-native';
 import { RADIUS, SPACING } from '../tokens';
 import { Section, PageHeader, IconBtn, Pill } from '../components/UI';
 import { IconBell, IconPlay, IconCalendar, IconArrowUp, IconFlame, IconScale, IconSpark } from '../components/Icons';
@@ -54,6 +54,21 @@ export default function HomeScreen({ navigation, T }) {
   const weekGoal = user?.days || 4;
   const volT = volumeThisWeek();
 
+  const handleBell = () => {
+    if (state.sessions.length === 0) {
+      Alert.alert('Sin notificaciones', 'Completa tu primer entreno para recibir sugerencias personalizadas del coach.', [{ text: 'OK' }]);
+    } else {
+      const last = state.sessions[0];
+      const mins = last.durationSec ? Math.round(last.durationSec / 60) : 0;
+      const pending = weekGoal - weekDone;
+      Alert.alert(
+        'Actividad reciente',
+        `Último entreno: ${last.label} (${mins} min · ${last.completedSets} series)\n\n${pending > 0 ? `Te quedan ${pending} sesión${pending > 1 ? 'es' : ''} para completar tu meta semanal.` : '¡Meta semanal completada! 🎯'}`,
+        [{ text: 'Ver progreso', onPress: () => navigation.navigate('Progreso') }, { text: 'OK' }]
+      );
+    }
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: T.bg }}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
@@ -67,7 +82,7 @@ export default function HomeScreen({ navigation, T }) {
             </Text>
           </View>
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-            <IconBtn T={T}><IconBell size={20} color={T.ink} /></IconBtn>
+            <IconBtn T={T} onPress={handleBell}><IconBell size={20} color={T.ink} /></IconBtn>
             <View style={{ width: 44, height: 44, borderRadius: RADIUS.pill, backgroundColor: T.ink, alignItems: 'center', justifyContent: 'center' }}>
               <Text style={{ fontFamily: 'System', fontWeight: '600', fontSize: 16, color: T.bg }}>{initial}</Text>
             </View>

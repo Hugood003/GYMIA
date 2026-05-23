@@ -71,8 +71,13 @@ function SetRow({ T, idx, s, active, onComplete, onUndo, onEditReps, onEditKg })
 }
 
 export default function SessionScreen({ navigation, T }) {
-  const { dispatch } = useApp();
-  const [exs, setExs]           = useState(() => JSON.parse(JSON.stringify(TODAY.exercises)));
+  const { state, dispatch } = useApp();
+  const todayPlan = state.plan.find(d => d.status === 'today');
+  const sessionLabel = todayPlan?.label || TODAY.label;
+  const [exs, setExs] = useState(() => {
+    const src = todayPlan?.exercisesList || TODAY.exercises;
+    return JSON.parse(JSON.stringify(src));
+  });
   const [curIdx, setCurIdx]     = useState(0);
   const [elapsed, setElapsed]   = useState(0);
   const [paused, setPaused]     = useState(false);
@@ -156,7 +161,7 @@ export default function SessionScreen({ navigation, T }) {
       payload: {
         id: Date.now(),
         date: new Date().toISOString(),
-        label: TODAY.label,
+        label: sessionLabel,
         exercises: exs,
         completedSets,
         totalSets,
@@ -195,7 +200,7 @@ export default function SessionScreen({ navigation, T }) {
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <IconBtn T={T} onPress={() => navigation.goBack()}><IconClose size={20} color={T.ink} /></IconBtn>
           <View style={{ alignItems: 'center', flex: 1 }}>
-            <Text style={{ fontFamily: 'SpaceMono', fontSize: 10, color: T.ink3, letterSpacing: 1.6, textTransform: 'uppercase' }}>SESIÓN · PIERNA</Text>
+            <Text style={{ fontFamily: 'SpaceMono', fontSize: 10, color: T.ink3, letterSpacing: 1.6, textTransform: 'uppercase' }}>SESIÓN · {sessionLabel.split('·')[0].trim().toUpperCase()}</Text>
             <Text style={{ fontFamily: 'System', fontSize: 16, fontWeight: '600', color: T.ink, marginTop: 2 }}>{timeStr}</Text>
           </View>
           <IconBtn T={T} onPress={() => setPaused(p => !p)}>

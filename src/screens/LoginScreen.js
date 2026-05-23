@@ -1,19 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
 import { RADIUS, SPACING } from '../tokens';
-import { CTA, Hairline } from '../components/UI';
+import { CTA } from '../components/UI';
 import { IconShield, IconCheck, IconChevRight, IconEye } from '../components/Icons';
-
-WebBrowser.maybeCompleteAuthSession();
-
-// ─── Reemplaza con tus credenciales de Google Cloud Console ───
-const GOOGLE_WEB_CLIENT_ID    = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID    || null;
-const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || null;
-const GOOGLE_IOS_CLIENT_ID    = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID    || null;
-// ──────────────────────────────────────────────────────────────
 
 const ACCOUNTS_KEY = 'gymia_accounts';
 
@@ -93,43 +83,6 @@ export default function LoginScreen({ navigation, T }) {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading]   = useState(false);
   const isSignup = mode === 'signup';
-
-  // ── Google OAuth ──────────────────────────────────────────────
-  const [googleRequest, googleResponse, googlePrompt] = Google.useAuthRequest({
-    webClientId:     GOOGLE_WEB_CLIENT_ID,
-    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
-    iosClientId:     GOOGLE_IOS_CLIENT_ID,
-  });
-
-  useEffect(() => {
-    if (googleResponse?.type !== 'success') return;
-    handleGoogleSuccess(googleResponse.authentication.accessToken);
-  }, [googleResponse]);
-
-  const handleGoogleSuccess = async (accessToken) => {
-    setLoading(true);
-    try {
-      const res  = await fetch('https://www.googleapis.com/userinfo/v2/me', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      const info = await res.json();
-      const email = info.email?.toLowerCase();
-      const name  = info.name || info.given_name || 'Usuario';
-
-      const accounts = await getAccounts();
-      const exists   = accounts.find(a => a.email === email);
-      if (!exists) {
-        await saveAccount(email, '__google__', name);
-        navigation.replace('Onboarding', { name });
-      } else {
-        navigation.replace('Main');
-      }
-    } catch {
-      setErrors({ email: 'Error al iniciar con Google. Intenta de nuevo.' });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSubmit = async () => {
     setSubmitted(true);
@@ -243,26 +196,6 @@ export default function LoginScreen({ navigation, T }) {
             </View>
           )}
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 14 }}>
-            <Hairline T={T} style={{ flex: 1 }} />
-            <Text style={{ fontFamily: 'SpaceMono', fontSize: 9, color: T.ink3, letterSpacing: 1.8, textTransform: 'uppercase' }}>O continúa con</Text>
-            <Hairline T={T} style={{ flex: 1 }} />
-          </View>
-
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <TouchableOpacity style={{ flex: 1, backgroundColor: T.surface, borderWidth: 1, borderColor: T.hairline, borderRadius: RADIUS.md, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-              <Text style={{ fontFamily: 'System', fontSize: 14, fontWeight: '600', color: T.ink }}>Apple</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => GOOGLE_WEB_CLIENT_ID ? googlePrompt() : setErrors({ email: 'Configura EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID en .env' })}
-              disabled={loading}
-              style={{ flex: 1, backgroundColor: T.surface, borderWidth: 1, borderColor: T.hairline, borderRadius: RADIUS.md, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-              {loading
-                ? <ActivityIndicator size="small" color={T.ink} />
-                : <Text style={{ fontFamily: 'System', fontSize: 14, fontWeight: '600', color: T.ink }}>Google</Text>
-              }
-            </TouchableOpacity>
-          </View>
           <View style={{ height: 20 }} />
         </ScrollView>
 

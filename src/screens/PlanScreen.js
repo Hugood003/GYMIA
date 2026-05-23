@@ -54,7 +54,11 @@ export default function PlanScreen({ navigation, T }) {
     <SafeAreaView style={{ flex: 1, backgroundColor: T.bg }}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         <PageHeader T={T} kicker="Plan adaptativo" title="Semana 04"
-          right={<IconBtn T={T}><IconSettings size={20} color={T.ink} /></IconBtn>} />
+          right={
+            <IconBtn T={T} onPress={() => navigation.navigate('Onboarding')}>
+              <IconSettings size={20} color={T.ink} />
+            </IconBtn>
+          } />
 
         {/* Summary */}
         <View style={{ paddingHorizontal: SPACING.md, paddingBottom: 18 }}>

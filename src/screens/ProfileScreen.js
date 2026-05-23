@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
 import { RADIUS, SPACING } from '../tokens';
 import { PageHeader, IconBtn, Toggle } from '../components/UI';
@@ -32,9 +32,34 @@ function Row({ T, icon, label, value, last, onPress }) {
   );
 }
 
+const REST_OPTIONS = ['60 seg', '90 seg', '2 min', '3 min'];
+
 export default function ProfileScreen({ navigation, T, dark, setDark }) {
   const { state, streak } = useApp();
   const user = state.user;
+
+  const [aiPrefs, setAiPrefs] = useState({ autoAdapt: true, sessionSuggestions: true, weeklyAnalysis: false });
+  const [defaultRest, setDefaultRest] = useState('2 min');
+  const [infoModal, setInfoModal] = useState(null); // { title, body }
+
+  const toggleAI = key => setAiPrefs(p => ({ ...p, [key]: !p[key] }));
+
+  const handleRestChange = () => {
+    const cur = REST_OPTIONS.indexOf(defaultRest);
+    setDefaultRest(REST_OPTIONS[(cur + 1) % REST_OPTIONS.length]);
+  };
+
+  const handlePrivacy = () =>
+    setInfoModal({
+      title: 'Privacidad y datos',
+      body: 'Tus datos se almacenan únicamente en este dispositivo. GYMIA no comparte información con terceros ni sube datos a servidores externos.\n\nPara eliminar todos tus datos, desinstala la aplicación.',
+    });
+
+  const handleNotifications = () =>
+    setInfoModal({
+      title: 'Notificaciones',
+      body: 'Las notificaciones se gestionan desde los ajustes de tu dispositivo.\n\nVe a Ajustes → GYMIA → Notificaciones para activarlas o desactivarlas.',
+    });
 
   const firstName = user?.name || 'Usuario';
   const initial = firstName[0]?.toUpperCase() || 'U';
@@ -47,7 +72,11 @@ export default function ProfileScreen({ navigation, T, dark, setDark }) {
     <SafeAreaView style={{ flex: 1, backgroundColor: T.bg }}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         <PageHeader T={T} kicker="Perfil" title={firstName}
-          right={<IconBtn T={T}><IconSettings size={20} color={T.ink} /></IconBtn>} />
+          right={
+            <IconBtn T={T} onPress={() => navigation.navigate('Onboarding')}>
+              <IconSettings size={20} color={T.ink} />
+            </IconBtn>
+          } />
 
         {/* Profile card */}
         <View style={{ paddingHorizontal: SPACING.md, paddingBottom: 18 }}>
@@ -103,25 +132,41 @@ export default function ProfileScreen({ navigation, T, dark, setDark }) {
           <Row T={T} icon={<IconTarget size={18} color={T.ink2} />}   label="Objetivo"              value={goalLabel} />
           <Row T={T} icon={<IconDumb size={18} color={T.ink2} />}     label="Equipamiento"          value={user?.equip?.length ? `${user.equip.length} elementos` : '—'} />
           <Row T={T} icon={<IconCalendar size={18} color={T.ink2} />} label="Días activos"          value={daysLabel} />
-          <Row T={T} icon={<IconTimer size={18} color={T.ink2} />}    label="Descanso por defecto"  value="2 min" last />
+          <Row T={T} icon={<IconTimer size={18} color={T.ink2} />}    label="Descanso por defecto"  value={defaultRest} onPress={handleRestChange} last />
         </ListGroup>
 
         <ListGroup T={T} title="Asistente IA">
-          <Row T={T} icon={<IconSpark size={18} color={T.ink2} />}  label="Adaptación automática"  value={<Toggle T={T} on={true} />} />
-          <Row T={T} icon={<IconBell size={18} color={T.ink2} />}   label="Sugerencias por sesión"  value={<Toggle T={T} on={true} />} />
-          <Row T={T} icon={<IconChart size={18} color={T.ink2} />}  label="Análisis semanal"        value={<Toggle T={T} on={false} />} last />
+          <Row T={T} icon={<IconSpark size={18} color={T.ink2} />}  label="Adaptación automática"  value={<Toggle T={T} on={aiPrefs.autoAdapt}          onPress={() => toggleAI('autoAdapt')} />}          onPress={() => toggleAI('autoAdapt')} />
+          <Row T={T} icon={<IconBell size={18} color={T.ink2} />}   label="Sugerencias por sesión"  value={<Toggle T={T} on={aiPrefs.sessionSuggestions} onPress={() => toggleAI('sessionSuggestions')} />} onPress={() => toggleAI('sessionSuggestions')} />
+          <Row T={T} icon={<IconChart size={18} color={T.ink2} />}  label="Análisis semanal"        value={<Toggle T={T} on={aiPrefs.weeklyAnalysis}     onPress={() => toggleAI('weeklyAnalysis')} />}     onPress={() => toggleAI('weeklyAnalysis')} last />
         </ListGroup>
 
         <ListGroup T={T} title="App">
-          <Row T={T} icon={<IconBolt size={18} color={T.ink2} />}   label="Modo oscuro"       value={<Toggle T={T} on={dark} onPress={() => setDark(!dark)} />} />
-          <Row T={T} icon={<IconShield size={18} color={T.ink2} />} label="Privacidad y datos" />
-          <Row T={T} icon={<IconBell size={18} color={T.ink2} />}   label="Notificaciones"     last />
+          <Row T={T} icon={<IconBolt size={18} color={T.ink2} />}   label="Modo oscuro"        value={<Toggle T={T} on={dark} onPress={() => setDark(!dark)} />} onPress={() => setDark(!dark)} />
+          <Row T={T} icon={<IconShield size={18} color={T.ink2} />} label="Privacidad y datos"  onPress={handlePrivacy} />
+          <Row T={T} icon={<IconBell size={18} color={T.ink2} />}   label="Notificaciones"      onPress={handleNotifications} last />
         </ListGroup>
 
         <View style={{ paddingVertical: 20, alignItems: 'center' }}>
           <Text style={{ fontFamily: 'SpaceMono', fontSize: 10, color: T.ink3, letterSpacing: 1.4, textTransform: 'uppercase' }}>GYMIA v1.0 · build 001</Text>
         </View>
       </ScrollView>
+
+      {/* Info modal (web-compatible) */}
+      {infoModal && (
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setInfoModal(null)}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ backgroundColor: T.surface, borderRadius: RADIUS.xl, padding: 24, width: '100%', maxWidth: 360 }}>
+            <Text style={{ fontFamily: 'System', fontSize: 17, fontWeight: '700', color: T.ink, letterSpacing: -0.3, marginBottom: 12 }}>{infoModal.title}</Text>
+            <Text style={{ fontFamily: 'System', fontSize: 14, color: T.ink2, lineHeight: 22 }}>{infoModal.body}</Text>
+            <TouchableOpacity onPress={() => setInfoModal(null)} style={{ marginTop: 20, backgroundColor: T.ink, borderRadius: RADIUS.pill, paddingVertical: 12, alignItems: 'center' }}>
+              <Text style={{ fontFamily: 'System', fontSize: 15, fontWeight: '600', color: T.bg }}>Entendido</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      )}
     </SafeAreaView>
   );
 }
