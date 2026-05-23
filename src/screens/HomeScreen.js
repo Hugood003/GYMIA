@@ -120,11 +120,12 @@ export default function HomeScreen({ navigation, T }) {
               const done    = d.status === 'done';
               const rest    = d.status === 'rest';
               return (
-                <View key={d.d} style={{ flex: 1, backgroundColor: isToday ? T.ink : T.surface, borderWidth: 1, borderColor: isToday ? T.ink : T.hairline, borderRadius: RADIUS.md, paddingVertical: 12, alignItems: 'center' }}>
+                <TouchableOpacity key={d.d} onPress={() => isToday ? navigation.navigate('Session') : navigation.navigate('Plan')} activeOpacity={0.75}
+                  style={{ flex: 1, backgroundColor: isToday ? T.ink : T.surface, borderWidth: 1, borderColor: isToday ? T.ink : T.hairline, borderRadius: RADIUS.md, paddingVertical: 12, alignItems: 'center' }}>
                   <Text style={{ fontFamily: 'SpaceMono', fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: isToday ? 'rgba(255,255,255,0.55)' : T.ink3 }}>{d.d}</Text>
                   <Text style={{ fontFamily: 'SpaceMono', fontSize: 17, fontWeight: '600', color: isToday ? '#fff' : T.ink, marginTop: 4 }}>{d.date}</Text>
                   <View style={{ marginTop: 8, width: 6, height: 6, borderRadius: 3, backgroundColor: done ? T.accent : rest ? 'transparent' : isToday ? T.accent : T.surface3, borderWidth: rest ? 1 : 0, borderColor: T.ink3 }} />
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>
