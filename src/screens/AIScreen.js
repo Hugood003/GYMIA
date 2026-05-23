@@ -306,7 +306,7 @@ export default function AIScreen({ navigation, T }) {
               <View style={{ height: 20 }} />
             </ScrollView>
 
-            <View style={{ padding: SPACING.md, paddingBottom: 36 }}>
+            <View style={{ padding: SPACING.md, paddingBottom: 100 }}>
               <View style={{ backgroundColor: T.surface, borderWidth: 1, borderColor: T.hairline, borderRadius: 24, paddingVertical: 6, paddingLeft: 16, paddingRight: 6, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <TextInput value={draft} onChangeText={setDraft} onSubmitEditing={() => send(draft)}
                   placeholder="Pregunta lo que sea…" placeholderTextColor={T.ink3}

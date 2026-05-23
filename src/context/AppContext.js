@@ -10,7 +10,7 @@ function computePlanStatuses(plan) {
   return plan.map(day => {
     if (day.label === 'Descanso') return { ...day, status: 'rest' };
     const o = DAY_ORDER[day.d];
-    const status = o === todayOrder ? 'today' : o < todayOrder ? 'done' : 'next';
+    const status = o === todayOrder ? 'today' : 'next';
     return { ...day, status };
   });
 }
