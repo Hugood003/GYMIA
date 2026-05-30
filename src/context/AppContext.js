@@ -75,6 +75,8 @@ function reducer(state, action) {
       );
       return { ...state, plan: newPlan };
     }
+    case 'LOGOUT':
+      return { ...initial, plan: computePlanStatuses(WEEK_DEFAULT) };
     default:
       return state;
   }
@@ -117,8 +119,13 @@ export function AppProvider({ children }) {
     return Math.round(kg / 100) / 10; // tonnes
   };
 
+  const logout = async () => {
+    await AsyncStorage.removeItem(KEY).catch(() => {});
+    dispatch({ type: 'LOGOUT' });
+  };
+
   return (
-    <AppContext.Provider value={{ state, dispatch, loaded, streak, sessionsThisWeek, volumeThisWeek }}>
+    <AppContext.Provider value={{ state, dispatch, loaded, streak, sessionsThisWeek, volumeThisWeek, logout }}>
       {children}
     </AppContext.Provider>
   );

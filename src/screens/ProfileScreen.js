@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
 import { RADIUS, SPACING } from '../tokens';
 import { PageHeader, IconBtn, Toggle } from '../components/UI';
-import { IconSettings, IconFlame, IconTarget, IconDumb, IconCalendar, IconTimer, IconSpark, IconBell, IconChart, IconBolt, IconShield } from '../components/Icons';
+import { IconSettings, IconFlame, IconTarget, IconDumb, IconCalendar, IconTimer, IconSpark, IconBell, IconChart, IconBolt, IconShield, IconClose } from '../components/Icons';
 import { useApp } from '../context/AppContext';
 
 const GOAL_LABELS = { hipertrofia: 'Hipertrofia', fuerza: 'Fuerza', definicion: 'Definición', salud: 'Salud y forma' };
@@ -35,12 +35,18 @@ function Row({ T, icon, label, value, last, onPress }) {
 const REST_OPTIONS = ['60 seg', '90 seg', '2 min', '3 min'];
 
 export default function ProfileScreen({ navigation, T, dark, setDark }) {
-  const { state, streak } = useApp();
+  const { state, streak, logout } = useApp();
   const user = state.user;
 
   const [aiPrefs, setAiPrefs] = useState({ autoAdapt: true, sessionSuggestions: true, weeklyAnalysis: false });
   const [defaultRest, setDefaultRest] = useState('2 min');
   const [infoModal, setInfoModal] = useState(null); // { title, body }
+  const [logoutModal, setLogoutModal] = useState(false);
+
+  const handleLogout = async () => {
+    await logout();
+    navigation.getParent()?.reset({ index: 0, routes: [{ name: 'Login' }] });
+  };
 
   const toggleAI = key => setAiPrefs(p => ({ ...p, [key]: !p[key] }));
 
@@ -144,13 +150,31 @@ export default function ProfileScreen({ navigation, T, dark, setDark }) {
         <ListGroup T={T} title="App">
           <Row T={T} icon={<IconBolt size={18} color={T.ink2} />}   label="Modo oscuro"        value={<Toggle T={T} on={dark} onPress={() => setDark(!dark)} />} onPress={() => setDark(!dark)} />
           <Row T={T} icon={<IconShield size={18} color={T.ink2} />} label="Privacidad y datos"  onPress={handlePrivacy} />
-          <Row T={T} icon={<IconBell size={18} color={T.ink2} />}   label="Notificaciones"      onPress={handleNotifications} last />
+          <Row T={T} icon={<IconBell size={18} color={T.ink2} />}   label="Notificaciones"      onPress={handleNotifications} />
+          <Row T={T} icon={<IconClose size={18} color="#E55353" />}  label="Cerrar sesión"       onPress={() => setLogoutModal(true)} last />
         </ListGroup>
 
         <View style={{ paddingVertical: 20, alignItems: 'center' }}>
           <Text style={{ fontFamily: 'SpaceMono', fontSize: 10, color: T.ink3, letterSpacing: 1.4, textTransform: 'uppercase' }}>GYMIA v1.0 · build 001</Text>
         </View>
       </ScrollView>
+
+      {/* Logout confirmation modal */}
+      {logoutModal && (
+        <TouchableOpacity activeOpacity={1} onPress={() => setLogoutModal(false)}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ backgroundColor: T.surface, borderRadius: RADIUS.xl, padding: 24, width: '100%', maxWidth: 360 }}>
+            <Text style={{ fontFamily: 'System', fontSize: 17, fontWeight: '700', color: T.ink, letterSpacing: -0.3, marginBottom: 8 }}>¿Cerrar sesión?</Text>
+            <Text style={{ fontFamily: 'System', fontSize: 14, color: T.ink2, lineHeight: 22, marginBottom: 20 }}>Tu progreso está guardado en el dispositivo. Podrás volver a entrar con tu cuenta.</Text>
+            <TouchableOpacity onPress={handleLogout} style={{ backgroundColor: '#E55353', borderRadius: RADIUS.pill, paddingVertical: 12, alignItems: 'center', marginBottom: 10 }}>
+              <Text style={{ fontFamily: 'System', fontSize: 15, fontWeight: '600', color: '#fff' }}>Sí, cerrar sesión</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setLogoutModal(false)} style={{ backgroundColor: T.surface2, borderRadius: RADIUS.pill, paddingVertical: 12, alignItems: 'center' }}>
+              <Text style={{ fontFamily: 'System', fontSize: 15, fontWeight: '600', color: T.ink }}>Cancelar</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      )}
 
       {/* Info modal (web-compatible) */}
       {infoModal && (
