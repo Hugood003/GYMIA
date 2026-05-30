@@ -94,7 +94,7 @@ export default function LoginScreen({ navigation, T }) {
 
   const [googleRequest, googleResponse, googlePrompt] = Google.useAuthRequest({
     webClientId:     GOOGLE_WEB_CLIENT_ID,
-    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+    androidClientId: GOOGLE_ANDROID_CLIENT_ID || GOOGLE_WEB_CLIENT_ID,
   });
 
   useEffect(() => {
