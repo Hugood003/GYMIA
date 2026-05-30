@@ -38,10 +38,48 @@ function DayRow({ T, d, onPress }) {
   );
 }
 
+const TIPS = [
+  'La progresión de carga es clave. Sube el peso solo cuando completes todas las series con buena técnica.',
+  'El descanso es parte del entrenamiento. Dormir 7-9 h acelera la recuperación muscular.',
+  'La hidratación afecta el rendimiento. Bebe agua antes, durante y después del entreno.',
+  'Varía los ángulos de trabajo para estimular más fibras musculares en cada grupo.',
+  'El calentamiento reduce lesiones. Dedica 5-10 min antes de la primera serie pesada.',
+];
+
+function computeHint(sessions) {
+  const n = sessions.length;
+  if (n === 0) return null;
+
+  if (n < 3) {
+    const left = 3 - n;
+    return {
+      type: 'onboarding',
+      body: `Llevas ${n} sesión${n > 1 ? 'es' : ''} registrada${n > 1 ? 's' : ''}. Completa ${left} más y empezaré a detectar patrones en tu entrenamiento.`,
+    };
+  }
+
+  // Count label categories in last 5 sessions
+  const recent = sessions.slice(0, 5);
+  const counts = {};
+  for (const s of recent) {
+    const key = s.label?.split('·')[0]?.trim() || s.label || 'Entreno';
+    counts[key] = (counts[key] || 0) + 1;
+  }
+  const overloaded = Object.entries(counts).filter(([, c]) => c >= 3).sort((a, b) => b[1] - a[1]);
+
+  if (overloaded.length > 0) {
+    const [label, count] = overloaded[0];
+    return { type: 'warning', label, count };
+  }
+
+  return { type: 'tip', body: TIPS[n % TIPS.length] };
+}
+
 export default function PlanScreen({ navigation, T }) {
   const { state } = useApp();
   const WEEK = state.plan;
-  const [hint, setHint] = React.useState('pending'); // 'pending' | 'accepted' | 'dismissed'
+  const [dismissed, setDismissed] = React.useState(false);
+  const [acted, setActed]         = React.useState(false);
 
   const activeDays = WEEK.filter(d => d.status !== 'rest').length;
   const totalMin   = WEEK.reduce((s, d) => s + (d.minutes || 0), 0);
@@ -49,6 +87,7 @@ export default function PlanScreen({ navigation, T }) {
   const remMin     = totalMin % 60;
   const timeLabel  = `${totalHours}h ${remMin > 0 ? remMin + 'm' : ''}`.trim();
   const hasHistory = state.sessions.length > 0;
+  const hint = computeHint(state.sessions);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: T.bg }}>
@@ -111,33 +150,53 @@ export default function PlanScreen({ navigation, T }) {
           </View>
         </View>
 
-        {/* AI hint — solo visible tras al menos una sesión */}
-        {hint !== 'dismissed' && hasHistory && (
+        {/* AI hint — dinámico según historial real */}
+        {!dismissed && hint && (
           <View style={{ paddingHorizontal: SPACING.md, paddingTop: 18 }}>
-            <View style={{ backgroundColor: T.surface, borderWidth: 1, borderColor: hint === 'accepted' ? T.accent : T.hairline, borderRadius: RADIUS.xl, padding: SPACING.md, flexDirection: 'row', gap: 12 }}>
+            <View style={{ backgroundColor: T.surface, borderWidth: 1, borderColor: (hint.type === 'warning' && acted) ? T.accent : T.hairline, borderRadius: RADIUS.xl, padding: SPACING.md, flexDirection: 'row', gap: 12 }}>
               <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' }}>
                 <IconSpark size={16} color={T.accentInk} />
               </View>
               <View style={{ flex: 1 }}>
-                {hint === 'pending' ? (
+
+                {hint.type === 'onboarding' && (
+                  <Text style={{ fontFamily: 'System', fontSize: 14, color: T.ink, lineHeight: 20 }}>
+                    {hint.body}
+                  </Text>
+                )}
+
+                {hint.type === 'tip' && (
+                  <Text style={{ fontFamily: 'System', fontSize: 14, color: T.ink, lineHeight: 20 }}>
+                    💡 {hint.body}
+                  </Text>
+                )}
+
+                {hint.type === 'warning' && !acted && (
                   <>
                     <Text style={{ fontFamily: 'System', fontSize: 14, color: T.ink, lineHeight: 20 }}>
-                      Detecté que <Text style={{ fontWeight: '700' }}>hombro</Text> aparece en 3 sesiones seguidas. ¿Quieres que lo redistribuya?
+                      Detecté que <Text style={{ fontWeight: '700' }}>{hint.label}</Text> aparece en {hint.count} de tus últimas sesiones. ¿Quieres que el coach lo redistribuya?
                     </Text>
                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-                      <TouchableOpacity onPress={() => setHint('accepted')} style={{ backgroundColor: T.ink, paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.pill }}>
+                      <TouchableOpacity
+                        onPress={() => { setActed(true); navigation.navigate('AI'); }}
+                        style={{ backgroundColor: T.ink, paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.pill }}>
                         <Text style={{ fontFamily: 'System', fontSize: 12, fontWeight: '600', color: T.bg }}>Sí, redistribuir</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => setHint('dismissed')} style={{ borderWidth: 1, borderColor: T.hairline, paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.pill }}>
+                      <TouchableOpacity
+                        onPress={() => setDismissed(true)}
+                        style={{ borderWidth: 1, borderColor: T.hairline, paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.pill }}>
                         <Text style={{ fontFamily: 'System', fontSize: 12, fontWeight: '600', color: T.ink }}>No, mantener</Text>
                       </TouchableOpacity>
                     </View>
                   </>
-                ) : (
+                )}
+
+                {hint.type === 'warning' && acted && (
                   <Text style={{ fontFamily: 'System', fontSize: 14, color: T.ink, lineHeight: 20 }}>
-                    ✓ <Text style={{ fontWeight: '700' }}>Hombro redistribuido.</Text> He movido el trabajo de hombro al viernes para dejar 48 h de recuperación entre sesiones.
+                    ✓ Hablando con el coach sobre <Text style={{ fontWeight: '700' }}>{hint.label}</Text>. Revisa el chat de IA para ver los cambios.
                   </Text>
                 )}
+
               </View>
             </View>
           </View>
