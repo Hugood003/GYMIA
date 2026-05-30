@@ -1,16 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
 import { RADIUS, SPACING } from '../tokens';
 import { CTA } from '../components/UI';
 import { IconShield, IconCheck, IconChevRight, IconEye } from '../components/Icons';
-
-WebBrowser.maybeCompleteAuthSession();
-
-const GOOGLE_WEB_CLIENT_ID     = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
-const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
 
 const ACCOUNTS_KEY = 'gymia_accounts';
 
@@ -89,38 +82,7 @@ export default function LoginScreen({ navigation, T }) {
   const [errors, setErrors]     = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading]   = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const isSignup = mode === 'signup';
-
-  const [googleRequest, googleResponse, googlePrompt] = Google.useAuthRequest({
-    webClientId:     GOOGLE_WEB_CLIENT_ID,
-    androidClientId: GOOGLE_ANDROID_CLIENT_ID || GOOGLE_WEB_CLIENT_ID,
-  });
-
-  useEffect(() => {
-    if (googleResponse?.type !== 'success') return;
-    const token = googleResponse.authentication?.accessToken;
-    if (!token) return;
-    setGoogleLoading(true);
-    fetch('https://www.googleapis.com/userinfo/v2/me', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(async info => {
-        const googleEmail = info.email;
-        const googleName  = info.given_name || info.name || 'Usuario';
-        const accounts    = await getAccounts();
-        const exists      = accounts.find(a => a.email === googleEmail);
-        if (!exists) {
-          await saveAccount(googleEmail, '__google__', googleName);
-          navigation.replace('Onboarding', { name: googleName });
-        } else {
-          navigation.replace('Main');
-        }
-      })
-      .catch(() => setErrors({ email: 'Error con Google. Intenta de nuevo.' }))
-      .finally(() => setGoogleLoading(false));
-  }, [googleResponse]);
 
   const handleSubmit = async () => {
     setSubmitted(true);
@@ -242,34 +204,6 @@ export default function LoginScreen({ navigation, T }) {
             icon={loading ? <ActivityIndicator size="small" color={T.accentInk} /> : <IconChevRight size={18} color={T.accentInk} />}>
             {loading ? 'Verificando…' : isSignup ? 'Crear cuenta' : 'Iniciar sesión'}
           </CTA>
-
-          {/* Google Sign-In — on Android requires EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID */}
-          {GOOGLE_WEB_CLIENT_ID && (Platform.OS !== 'android' || GOOGLE_ANDROID_CLIENT_ID) ? (
-            <>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14, marginBottom: 4 }}>
-                <View style={{ flex: 1, height: 1, backgroundColor: T.hairline }} />
-                <Text style={{ fontFamily: 'SpaceMono', fontSize: 9, color: T.ink3, letterSpacing: 1.4, textTransform: 'uppercase' }}>o continúa con</Text>
-                <View style={{ flex: 1, height: 1, backgroundColor: T.hairline }} />
-              </View>
-              <TouchableOpacity
-                onPress={() => googlePrompt()}
-                disabled={!googleRequest || googleLoading}
-                activeOpacity={0.8}
-                style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 14, paddingHorizontal: 22, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: T.hairline, backgroundColor: T.surface, opacity: (!googleRequest || googleLoading) ? 0.6 : 1 }}>
-                {googleLoading
-                  ? <ActivityIndicator size="small" color={T.ink} />
-                  : (
-                    <View style={{ width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd' }}>
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#4285F4' }}>G</Text>
-                    </View>
-                  )}
-                <Text style={{ fontFamily: 'System', fontSize: 15, fontWeight: '600', color: T.ink }}>
-                  {googleLoading ? 'Conectando…' : 'Continuar con Google'}
-                </Text>
-              </TouchableOpacity>
-            </>
-          ) : null}
-
           <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 14, gap: 4 }}>
             <Text style={{ fontFamily: 'System', fontSize: 13, color: T.ink2 }}>
               {isSignup ? '¿Ya tienes cuenta?' : '¿Eres nuevo en GYMIA?'}
