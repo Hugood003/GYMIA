@@ -243,8 +243,8 @@ export default function LoginScreen({ navigation, T }) {
             {loading ? 'Verificando…' : isSignup ? 'Crear cuenta' : 'Iniciar sesión'}
           </CTA>
 
-          {/* Google Sign-In */}
-          {GOOGLE_WEB_CLIENT_ID ? (
+          {/* Google Sign-In — on Android requires EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID */}
+          {GOOGLE_WEB_CLIENT_ID && (Platform.OS !== 'android' || GOOGLE_ANDROID_CLIENT_ID) ? (
             <>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14, marginBottom: 4 }}>
                 <View style={{ flex: 1, height: 1, backgroundColor: T.hairline }} />
