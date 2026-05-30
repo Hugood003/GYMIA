@@ -80,6 +80,15 @@ export default function SessionScreen({ navigation, T }) {
   });
   const [curIdx, setCurIdx]     = useState(0);
   const [elapsed, setElapsed]   = useState(0);
+
+  // Sync exercises when AI updates the plan (only if session hasn't started)
+  useEffect(() => {
+    const sessionStarted = exs.some(ex => ex.sets?.some(s => s.done));
+    if (!sessionStarted && todayPlan?.exercisesList) {
+      setExs(JSON.parse(JSON.stringify(todayPlan.exercisesList)));
+      setCurIdx(0);
+    }
+  }, [todayPlan?.exercisesList]);
   const [paused, setPaused]     = useState(false);
   const [resting, setResting]   = useState(false);
   const [restLeft, setRestLeft] = useState(0);

@@ -5,13 +5,24 @@ import { WEEK as WEEK_DEFAULT } from '../data';
 const DAY_ORDER = { 'Lun':1, 'Mar':2, 'Mié':3, 'Jue':4, 'Vie':5, 'Sáb':6, 'Dom':7 };
 
 function computePlanStatuses(plan) {
-  const jsDay = new Date().getDay(); // 0=Dom … 6=Sáb
+  const now = new Date();
+  const jsDay = now.getDay(); // 0=Dom … 6=Sáb
   const todayOrder = jsDay === 0 ? 7 : jsDay;
+
+  // Monday of the current week
+  const mondayOffset = jsDay === 0 ? -6 : 1 - jsDay;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + mondayOffset);
+  monday.setHours(0, 0, 0, 0);
+
   return plan.map(day => {
-    if (day.label === 'Descanso') return { ...day, status: 'rest' };
-    const o = DAY_ORDER[day.d];
+    const o = DAY_ORDER[day.d] ?? 1;
+    const dayDate = new Date(monday);
+    dayDate.setDate(monday.getDate() + (o - 1));
+    const date = dayDate.getDate();
+    if (day.label === 'Descanso') return { ...day, status: 'rest', date };
     const status = o === todayOrder ? 'today' : 'next';
-    return { ...day, status };
+    return { ...day, status, date };
   });
 }
 

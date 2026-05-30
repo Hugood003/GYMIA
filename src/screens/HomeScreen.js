@@ -113,7 +113,7 @@ export default function HomeScreen({ navigation, T }) {
 
         {/* Week strip */}
         <View style={{ paddingHorizontal: SPACING.md, paddingTop: 24 }}>
-          <Section T={T} kicker="Semana 04" title="Tu plan" action="Ver todo" />
+          <Section T={T} kicker="Semana 04" title="Tu plan" action="Ver todo" onAction={() => navigation.navigate('Plan')} />
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {plan.map(d => {
               const isToday = d.status === 'today';

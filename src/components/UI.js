@@ -59,14 +59,18 @@ export function CTA({ children, onPress, T, tone = 'accent', style, icon, disabl
 }
 
 // ── Section header ───────────────────────────────────────────
-export function Section({ kicker, title, action, T, style }) {
+export function Section({ kicker, title, action, onAction, T, style }) {
   return (
     <View style={[{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 10 }, style]}>
       <View>
         {kicker && <Text style={{ fontFamily: 'SpaceMono', fontSize: 10, letterSpacing: 1.4, textTransform: 'uppercase', color: T.ink3, marginBottom: 4 }}>{kicker}</Text>}
         <Text style={{ fontFamily: 'System', fontSize: 20, fontWeight: '600', color: T.ink, letterSpacing: -0.4 }}>{title}</Text>
       </View>
-      {action && <Text style={{ fontFamily: 'SpaceMono', fontSize: 11, color: T.ink3, textTransform: 'uppercase', letterSpacing: 0.8 }}>{action}</Text>}
+      {action && (
+        <TouchableOpacity onPress={onAction} activeOpacity={onAction ? 0.6 : 1}>
+          <Text style={{ fontFamily: 'SpaceMono', fontSize: 11, color: onAction ? T.ink2 : T.ink3, textTransform: 'uppercase', letterSpacing: 0.8 }}>{action}</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
